@@ -24,7 +24,7 @@ No lint or formatter is configured.
 
 Layered package layout under the base package, one sub-package per layer:
 
-- `entity/` — JPA entities (`@Entity`, `Long` id with `GenerationType.IDENTITY`, plain getters/setters, no Lombok). Currently `Produit` (`id`, `name`, unique `code`), `Stock` (`id`, `code`, `description`) and `ProduitStock`, the association entity linking a product to a stock with a `quantite`. A product has a list of `ProduitStock`; the `(produit_id, stock_id)` pair is unique, so a product is linked at most once to a given stock. Links are created through Spring Data REST by POSTing to `/produitStocks` with `produit` and `stock` as URIs.
+- `entity/` — JPA entities (`@Entity`, `Long` id with `GenerationType.IDENTITY`, plain getters/setters, no Lombok). Currently `Store` (`id`, `code`, `description`), the top-level grouping: every `Produit` and every `Stock` belongs to exactly one `Store` (mandatory `store` URI when creating them via Spring Data REST; filter with `/produits/search/by-store?storeId=` and `/stocks/search/by-store?storeId=`). Then `Produit` (`id`, `name`, unique `code`, `store`), `Stock` (`id`, `code`, `description`, `store`) and `ProduitStock`, the association entity linking a product to a stock with a `quantite`. A product has a list of `ProduitStock`; the `(produit_id, stock_id)` pair is unique, so a product is linked at most once to a given stock. Links are created through Spring Data REST by POSTing to `/produitStocks` with `produit` and `stock` as URIs.
 - `repository/` — Spring Data interfaces extending `JpaRepository<Entity, Long>`, used for CRUD (e.g. `ProduitRepository`).
 
 Entity and code naming mixes French (`Produit`) and English field names (`name`, `code`).
