@@ -1,10 +1,15 @@
 package com.dreamTeam.backGroceryStore.entity;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 
 @Entity
 public class Produit {
@@ -17,6 +22,9 @@ public class Produit {
 
 	@Column(unique = true)
 	private String code;
+
+	@OneToMany(mappedBy = "produit", cascade = CascadeType.REMOVE)
+	private List<ProduitStock> stocks = new ArrayList<>();
 
 	public Produit() {
 	}
@@ -48,6 +56,14 @@ public class Produit {
 
 	public void setCode(String code) {
 		this.code = code;
+	}
+
+	public List<ProduitStock> getStocks() {
+		return stocks;
+	}
+
+	public void setStocks(List<ProduitStock> stocks) {
+		this.stocks = stocks;
 	}
 
 }
