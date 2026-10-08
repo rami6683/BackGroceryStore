@@ -20,6 +20,8 @@ Use the Maven wrapper (`mvnw.cmd` on Windows PowerShell, `./mvnw` in Git Bash):
 
 No lint or formatter is configured.
 
+Docker: `docker compose up --build -d` starts MySQL (`db`, data in the `mysql_data` volume) and the app (`app`, built from the multi-stage `Dockerfile`) on port 8080; `docker compose down` stops them and keeps the data (add `-v` to wipe it). The compose file overrides the `localhost` datasource of `application.properties` through `SPRING_DATASOURCE_*` environment variables. The image build uses `-DskipTests` because `contextLoads` needs a reachable MySQL.
+
 ## Architecture
 
 Layered package layout under the base package, one sub-package per layer:

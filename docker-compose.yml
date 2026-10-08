@@ -1,0 +1,37 @@
+services:
+
+  # Conteneur de la base de données MySQL
+  db:
+    image: mysql:8.4
+    container_name: store-db
+    environment:
+      MYSQL_DATABASE: storeDB
+      MYSQL_ROOT_PASSWORD: root6683   # valeur de développement, à changer en production
+    volumes:
+      # Volume nommé : les données survivent à l'arrêt/suppression du conteneur
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      # L'application ne démarre que lorsque MySQL accepte les connexions
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot6683"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Conteneur de l'application Spring Boot, image construite à partir du Dockerfile
+  app:
+    build: .
+    container_name: store-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Remplacent les valeurs de application.properties (localhost n'existe pas dans le conteneur :
+      # on utilise le nom du service "db" comme nom d'hôte)
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/storeDB
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root6683
+
+volumes:
+  mysql_data:
