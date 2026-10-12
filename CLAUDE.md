@@ -28,6 +28,7 @@ Layered package layout under the base package, one sub-package per layer:
 
 - `entity/` — JPA entities (`@Entity`, `Long` id with `GenerationType.IDENTITY`, plain getters/setters, no Lombok). Currently `Store` (`id`, `code`, `description`), the top-level grouping: every `Produit` and every `Stock` belongs to exactly one `Store` (mandatory `store` URI when creating them via Spring Data REST; filter with `/produits/search/by-store?storeId=` and `/stocks/search/by-store?storeId=`). Then `Produit` (`id`, `name`, unique `code`, `store`), `Stock` (`id`, `code`, `description`, `store`) and `ProduitStock`, the association entity linking a product to a stock with a `quantite`. A product has a list of `ProduitStock`; the `(produit_id, stock_id)` pair is unique, so a product is linked at most once to a given stock. Links are created through Spring Data REST by POSTing to `/produitStocks` with `produit` and `stock` as URIs.
 - `repository/` — Spring Data interfaces extending `JpaRepository<Entity, Long>`, used for CRUD (e.g. `ProduitRepository`).
+- `controller/`, `service/` — only for the custom `POST /api/produits` (see REST layer below): `ProduitController` and `ProduitService`.
 
 Entity and code naming mixes French (`Produit`) and English field names (`name`, `code`).
 
@@ -38,6 +39,8 @@ There are no hand-written controllers or services for CRUD. Endpoints come from 
 1. **Named query methods** in the JPA repository (e.g. `Optional<Produit> findByCode(String code)`), exposed by Spring Data REST under `/{resource}/search/...`. Use `@RestResource(path = "...")` to control the URL.
 2. **JPQL** (`@Query`) methods in the repository when the query cannot be expressed as a named method.
 3. **Custom `@RestController`** only when the endpoint is genuinely custom, i.e. a non-CRUD `POST` (an action or business operation rather than create/read/update/delete of an entity).
+
+The one custom endpoint so far is `POST /api/produits`, which takes a `Produit` whose `store` is an embedded JSON object (`{"name":"Tomate","code":"P1","store":{"code":"ST-A","description":"Magasin A"}}`) instead of a URI. It works because `Produit.store` has `cascade = PERSIST` and the controller binds the entity with plain Jackson: the store is created together with the product, and **always as a new store** (no reuse by code; passing an existing store `id` fails with 500). Returns 201, or 409 on a duplicate product `code` or a missing store (nothing is created). Never map a `@RestController` on `/produits` itself: it makes Spring Data REST's `GET /produits` answer 405, hence the `/api` prefix. The Spring Data REST `POST /produits` (with `store` as a URI) still exists.
 
 ## Git workflow
 

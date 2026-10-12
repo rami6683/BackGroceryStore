@@ -26,7 +26,7 @@ public class Produit {
 	@Column(unique = true)
 	private String code;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = CascadeType.PERSIST)
 	@JoinColumn(name = "store_id", nullable = false)
 	private Store store;
 
