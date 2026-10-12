@@ -3,7 +3,9 @@ package com.dreamTeam.backGroceryStore.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dreamTeam.backGroceryStore.dto.ProduitRequest;
 import com.dreamTeam.backGroceryStore.entity.Produit;
+import com.dreamTeam.backGroceryStore.entity.Store;
 import com.dreamTeam.backGroceryStore.repository.ProduitRepository;
 import com.dreamTeam.backGroceryStore.repository.StoreRepository;
 
@@ -19,13 +21,16 @@ public class ProduitService {
 		this.storeRepository = storeRepository;
 	}
 
-	// Si un store porte déjà ce code on le réutilise (la description du JSON est ignorée),
-	// sinon le store embarqué est créé en même temps grâce au cascade PERSIST.
+	// Si un store porte déjà ce code on le réutilise (la description de la requête est ignorée),
+	// sinon un nouveau Store est sauvegardé en même temps que le produit grâce au cascade PERSIST.
 	@Transactional
-	public Produit create(Produit produit) {
-		if (produit.getStore() != null && produit.getStore().getCode() != null) {
-			storeRepository.findByCode(produit.getStore().getCode()).ifPresent(produit::setStore);
-		}
+	public Produit create(ProduitRequest request) {
+		ProduitRequest.StoreRequest storeRequest = request.store();
+		Store store = storeRepository.findByCode(storeRequest.code())
+				.orElseGet(() -> new Store(storeRequest.code(), storeRequest.description()));
+
+		Produit produit = new Produit(request.name(), request.code());
+		produit.setStore(store);
 		return produitRepository.save(produit);
 	}
 
