@@ -1,11 +1,9 @@
 package com.dreamTeam.backGroceryStore.controller;
 
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.rest.webmvc.PersistentEntityResource;
-import org.springframework.data.rest.webmvc.PersistentEntityResourceAssembler;
 import org.springframework.data.rest.webmvc.RepositoryRestController;
-import org.springframework.hateoas.IanaLinkRelations;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,8 +11,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.dreamTeam.backGroceryStore.dto.ProduitRequest;
+import com.dreamTeam.backGroceryStore.dto.ProduitResponse;
 import com.dreamTeam.backGroceryStore.entity.Produit;
 import com.dreamTeam.backGroceryStore.service.ProduitService;
 
@@ -30,14 +30,16 @@ public class ProduitController {
 	}
 
 	@PostMapping("/produits")
-	public ResponseEntity<PersistentEntityResource> create(@RequestBody ProduitRequest request,
-			PersistentEntityResourceAssembler assembler) {
+	public ResponseEntity<ProduitResponse> create(@RequestBody ProduitRequest request) {
 		if (request.store() == null || !StringUtils.hasText(request.store().code())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "store.code est obligatoire");
 		}
 		Produit produit = produitService.create(request);
-		PersistentEntityResource resource = assembler.toFullResource(produit);
-		return ResponseEntity.created(resource.getRequiredLink(IanaLinkRelations.SELF).toUri()).body(resource);
+		// Location : /produits/{id}, construit à partir de l'URL de la requête courante (POST /produits)
+		return ResponseEntity
+				.created(ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(produit.getId()).toUri())
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(ProduitResponse.from(produit));
 	}
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
