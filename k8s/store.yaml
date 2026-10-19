@@ -100,7 +100,7 @@ spec:
           command: ["sh", "-c", "until mysqladmin ping -h db -p$MYSQL_ROOT_PASSWORD; do sleep 2; done"]
       containers:
         - name: store-app
-          image: store-app:latest        # image construite localement : docker build -t store-app:latest .
+          image: mon-app-spring:0.0.1    # image construite localement : docker build -t mon-app-spring:0.0.1 .
           imagePullPolicy: IfNotPresent  # ne pas chercher l'image sur un registre distant
           env:
             # Remplacent les valeurs de application.properties (comme dans docker-compose.yml)
