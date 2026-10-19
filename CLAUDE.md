@@ -22,6 +22,8 @@ No lint or formatter is configured.
 
 Docker: `docker compose up --build -d` starts MySQL (`db`, data in the `mysql_data` volume) and the app (`app`, built from the multi-stage `Dockerfile`) on port 8080; `docker compose down` stops them and keeps the data (add `-v` to wipe it). The compose file overrides the `localhost` datasource of `application.properties` through `SPRING_DATASOURCE_*` environment variables. The image build uses `-DskipTests` because `contextLoads` needs a reachable MySQL.
 
+Kubernetes: `k8s/store.yaml` holds everything (Secret, PVC, MySQL Deployment + Service `db`, app Deployment + NodePort Service) and mirrors the compose file. On a local cluster such as Docker Desktop: `docker build -t mon-app-spring:0.0.1 .`, then `kubectl apply -f k8s/store.yaml`; the API is on `http://localhost:30080`. `kubectl delete -f k8s/store.yaml` removes everything, including the database volume. The manifest uses `imagePullPolicy: IfNotPresent`, so the image must exist in the cluster's image store (with minikube/kind, load it first).
+
 ## Architecture
 
 Layered package layout under the base package, one sub-package per layer:
