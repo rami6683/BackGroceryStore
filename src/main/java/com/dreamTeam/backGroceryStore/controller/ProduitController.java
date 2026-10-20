@@ -1,26 +1,27 @@
 package com.dreamTeam.backGroceryStore.controller;
 
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.rest.webmvc.RepositoryRestController;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.dreamTeam.backGroceryStore.dto.ProduitRequest;
 import com.dreamTeam.backGroceryStore.dto.ProduitResponse;
-import com.dreamTeam.backGroceryStore.entity.Produit;
 import com.dreamTeam.backGroceryStore.service.ProduitService;
 
-// @RepositoryRestController (et non @RestController) : ce POST remplace celui de Spring Data REST sur /produits
-// sans casser le GET /produits ni les autres endpoints générés.
-@RepositoryRestController
+@RestController
+@RequestMapping("/produits")
 public class ProduitController {
 
 	private final ProduitService produitService;
@@ -29,22 +30,43 @@ public class ProduitController {
 		this.produitService = produitService;
 	}
 
-	@PostMapping("/produits")
-	public ResponseEntity<ProduitResponse> create(@RequestBody ProduitRequest request) {
-		if (request.store() == null || !StringUtils.hasText(request.store().code())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "store.code est obligatoire");
-		}
-		Produit produit = produitService.create(request);
-		// Location : /produits/{id}, construit à partir de l'URL de la requête courante (POST /produits)
-		return ResponseEntity
-				.created(ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(produit.getId()).toUri())
-				.contentType(MediaType.APPLICATION_JSON)
-				.body(ProduitResponse.from(produit));
+	@GetMapping
+	public List<ProduitResponse> findAll() {
+		return produitService.findAll();
 	}
 
-	@ExceptionHandler(DataIntegrityViolationException.class)
-	@ResponseStatus(HttpStatus.CONFLICT)
-	public void handleConflict() {
+	@GetMapping("/{id}")
+	public ProduitResponse findById(@PathVariable Long id) {
+		return produitService.findById(id);
+	}
+
+	@GetMapping("/by-code")
+	public ProduitResponse findByCode(@RequestParam String code) {
+		return produitService.findByCode(code);
+	}
+
+	@GetMapping("/by-store")
+	public List<ProduitResponse> findByStore(@RequestParam Long storeId) {
+		return produitService.findByStore(storeId);
+	}
+
+	@PostMapping
+	public ResponseEntity<ProduitResponse> create(@RequestBody ProduitRequest request) {
+		ProduitResponse created = produitService.create(request);
+		return ResponseEntity
+				.created(ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(created.id()).toUri())
+				.body(created);
+	}
+
+	@PutMapping("/{id}")
+	public ProduitResponse update(@PathVariable Long id, @RequestBody ProduitRequest request) {
+		return produitService.update(id, request);
+	}
+
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void delete(@PathVariable Long id) {
+		produitService.delete(id);
 	}
 
 }
