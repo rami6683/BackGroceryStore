@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Spring Boot 4.1.1 backend (Java 17, Maven) for a grocery store, base package `com.dreamTeam.backGroceryStore`. Dependencies: `spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`, `spring-boot-starter-data-rest`, H2 (runtime scope, in-memory). No datasource is configured in `application.properties`, so Spring Boot uses its embedded H2 defaults.
+Spring Boot 4.1.1 backend (Java 17, Maven) for a grocery store, base package `com.dreamTeam.backGroceryStore`. Dependencies: `spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`, `spring-boot-starter-data-rest` (still in the pom but being phased out, see "REST layer"), H2 (runtime scope, in-memory). No datasource is configured in `application.properties`, so Spring Boot uses its embedded H2 defaults.
 
 ## Commands
 
@@ -28,23 +28,29 @@ Kubernetes: `k8s/store.yaml` holds everything (Secret, PVC, MySQL Deployment + S
 
 Layered package layout under the base package, one sub-package per layer:
 
-- `entity/` — JPA entities (`@Entity`, `Long` id with `GenerationType.IDENTITY`, plain getters/setters, no Lombok). Currently `Store` (`id`, `code`, `description`), the top-level grouping: every `Produit` and every `Stock` belongs to exactly one `Store` (mandatory `store` URI when creating them via Spring Data REST; filter with `/produits/search/by-store?storeId=` and `/stocks/search/by-store?storeId=`). Then `Produit` (`id`, `name`, unique `code`, `store`), `Stock` (`id`, `code`, `description`, `store`) and `ProduitStock`, the association entity linking a product to a stock with a `quantite`. A product has a list of `ProduitStock`; the `(produit_id, stock_id)` pair is unique, so a product is linked at most once to a given stock. Links are created through Spring Data REST by POSTing to `/produitStocks` with `produit` and `stock` as URIs.
-- `repository/` — Spring Data interfaces extending `JpaRepository<Entity, Long>`, used for CRUD (e.g. `ProduitRepository`).
-- `controller/`, `service/`, `dto/` — only for the custom `POST /produits` (see REST layer below): `ProduitController` (`@RepositoryRestController`), `ProduitService`, and the `ProduitRequest` / `ProduitResponse` DTO records.
+- `entity/` — JPA entities (`@Entity`, `Long` id with `GenerationType.IDENTITY`, plain getters/setters, no Lombok). Currently `Store` (`id`, `code`, `description`), the top-level grouping: every `Produit` and every `Stock` belongs to exactly one `Store` (a store is mandatory when creating them). Then `Produit` (`id`, `name`, unique `code`, `store`), `Stock` (`id`, `code`, `description`, `store`) and `ProduitStock`, the association entity linking a product to a stock with a `quantite`. A product has a list of `ProduitStock`; the `(produit_id, stock_id)` pair is unique, so a product is linked at most once to a given stock.
+- `repository/` — Spring Data interfaces extending `JpaRepository<Entity, Long>` (e.g. `ProduitRepository`); only called by services.
+- `service/` — `@Service` classes holding the business logic and transactions; only call repositories.
+- `controller/` — `@RestController` classes exposing the HTTP endpoints; only call services.
+- `dto/` — request/response records exchanged by the controllers.
 
 Entity and code naming mixes French (`Produit`) and English field names (`name`, `code`).
 
-### REST layer (controller part)
+### REST layer
 
-There are no hand-written controllers or services for CRUD. Endpoints come from `spring-boot-starter-data-rest`, which exposes each repository automatically (e.g. `/produits`, `/produits/{id}`). To add behaviour beyond the CRUD it provides, go down this list and stop at the first option that works:
+Endpoints, CRUD included, are written by hand, one stack per entity: `XxxController` -> `XxxService` -> `XxxRepository`. We no longer use `spring-boot-starter-data-rest` to generate them.
 
-1. **Named query methods** in the JPA repository (e.g. `Optional<Produit> findByCode(String code)`), exposed by Spring Data REST under `/{resource}/search/...`. Use `@RestResource(path = "...")` to control the URL.
-2. **JPQL** (`@Query`) methods in the repository when the query cannot be expressed as a named method.
-3. **Custom `@RestController`** only when the endpoint is genuinely custom, i.e. a non-CRUD `POST` (an action or business operation rather than create/read/update/delete of an entity).
+- `XxxController`: `@RestController` with `@RequestMapping("/xxx")` exposing `GET` (list), `GET /{id}`, `POST`, `PUT /{id}` and `DELETE /{id}`. It only calls the service and exchanges DTO records from `dto/`, not entities.
+- `XxxService`: `@Service` with the business rules; `@Transactional` on methods that write. It only calls repositories.
+- `XxxRepository`: `JpaRepository<Xxx, Long>`.
 
-The one custom endpoint so far is `POST /produits`, which replaces the Spring Data REST one so the `store` can be described in the JSON instead of given as a URI: `{"name":"Tomate","code":"P1","store":{"code":"ST-A","description":"Magasin A"}}`. The body is bound to the `ProduitRequest` DTO (not the entity), because Spring Data REST's JSON mapping rejects an embedded association object. `Store.code` is unique and `ProduitService.create` looks the store up by that code: if one exists it is reused (the description in the request is ignored), otherwise a new `Store` is saved with the product through `Produit.store`'s `cascade = PERSIST`. Reuse is by `code` only, so a store `id` cannot be sent. Returns 201 with a plain `application/json` `ProduitResponse` (`id`, `name`, `code` and a nested `store` object with `id`, `code`, `description`; no HAL `_links`) and a `Location: /produits/{id}` header, 400 (missing `store.code`) or 409 (duplicate product `code`, nothing is created). The response is deliberately not HAL, unlike the other `/produits` endpoints.
+For a query that `JpaRepository` does not provide, add it to the repository and stop at the first option that works: 1. a **named query method** (e.g. `Optional<Produit> findByCode(String code)`), 2. a **JPQL** `@Query` method when the query cannot be expressed by name. The service wraps it and the controller exposes it (e.g. `GET /produits/by-code?code=`). A non-CRUD operation (an action rather than create/read/update/delete) is a dedicated controller method that calls a service method.
 
-Use `@RepositoryRestController`, not `@RestController`, for an endpoint on a path Spring Data REST already owns: a `@RestController` mapped on `/produits` makes `GET /produits` answer 405 (Spring MVC answers 405 as soon as the path matches with another method, without falling back to Spring Data REST). `GET`, `PUT`, `PATCH` and `DELETE` on `/produits` are still generated; the old `POST /produits` with `store` as a URI no longer works, `PUT`/`PATCH` still take the URI.
+#### Migration in progress
+
+The code has not been migrated yet. `spring-boot-starter-data-rest` is still in `pom.xml` and still generates the CRUD endpoints of `/produits`, `/stores`, `/stocks` and `/produitStocks` (HAL responses, associations given as URIs, `/search/...` endpoints such as `/produits/search/by-code?code=` and `/produits/search/by-store?storeId=`). The only hand-written stack is `ProduitController` (`@RepositoryRestController`) + `ProduitService` for `POST /produits`. To migrate an entity: write its controller, service and DTOs, hide its generated endpoints with `@RepositoryRestResource(exported = false)` on the repository, and remove the dependency from `pom.xml` once every entity is done. While the dependency is still present, a plain `@RestController` mapped on a path Spring Data REST also serves (e.g. exactly `/produits`) makes the generated `GET /produits` answer 405, because Spring MVC answers 405 as soon as the path matches with another method; use `@RepositoryRestController` or a different path until then.
+
+The existing `POST /produits` replaces the Spring Data REST one so the `store` can be described in the JSON instead of given as a URI: `{"name":"Tomate","code":"P1","store":{"code":"ST-A","description":"Magasin A"}}`. The body is bound to the `ProduitRequest` DTO (not the entity), because Spring Data REST's JSON mapping rejects an embedded association object. `Store.code` is unique and `ProduitService.create` looks the store up by that code: if one exists it is reused (the description in the request is ignored), otherwise a new `Store` is saved with the product through `Produit.store`'s `cascade = PERSIST`. Reuse is by `code` only, so a store `id` cannot be sent. Returns 201 with a plain `application/json` `ProduitResponse` (`id`, `name`, `code` and a nested `store` object with `id`, `code`, `description`; no HAL `_links`) and a `Location: /produits/{id}` header, 400 (missing `store.code`) or 409 (duplicate product `code`, nothing is created). The response is deliberately not HAL, unlike the other `/produits` endpoints. The old `POST /produits` with `store` as a URI no longer works, while the generated `PUT`/`PATCH` still take the URI.
 
 ## Git workflow
 
