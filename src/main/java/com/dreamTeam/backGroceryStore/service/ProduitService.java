@@ -1,13 +1,20 @@
 package com.dreamTeam.backGroceryStore.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.dreamTeam.backGroceryStore.dto.ProduitRequest;
+import com.dreamTeam.backGroceryStore.dto.ProduitResponse;
+import com.dreamTeam.backGroceryStore.dto.StoreRequest;
 import com.dreamTeam.backGroceryStore.entity.Produit;
 import com.dreamTeam.backGroceryStore.entity.Store;
 import com.dreamTeam.backGroceryStore.repository.ProduitRepository;
 import com.dreamTeam.backGroceryStore.repository.StoreRepository;
+
+import jakarta.persistence.EntityNotFoundException;
 
 @Service
 public class ProduitService {
@@ -21,17 +28,62 @@ public class ProduitService {
 		this.storeRepository = storeRepository;
 	}
 
-	// Si un store porte déjà ce code on le réutilise (la description de la requête est ignorée),
-	// sinon un nouveau Store est sauvegardé en même temps que le produit grâce au cascade PERSIST.
-	@Transactional
-	public Produit create(ProduitRequest request) {
-		ProduitRequest.StoreRequest storeRequest = request.store();
-		Store store = storeRepository.findByCode(storeRequest.code())
-				.orElseGet(() -> new Store(storeRequest.code(), storeRequest.description()));
+	@Transactional(readOnly = true)
+	public List<ProduitResponse> findAll() {
+		return produitRepository.findAll().stream().map(ProduitResponse::from).toList();
+	}
 
+	@Transactional(readOnly = true)
+	public ProduitResponse findById(Long id) {
+		return ProduitResponse.from(getOrThrow(id));
+	}
+
+	@Transactional(readOnly = true)
+	public ProduitResponse findByCode(String code) {
+		return produitRepository.findByCode(code).map(ProduitResponse::from)
+				.orElseThrow(() -> new EntityNotFoundException("Produit introuvable : code=" + code));
+	}
+
+	@Transactional(readOnly = true)
+	public List<ProduitResponse> findByStore(Long storeId) {
+		return produitRepository.findByStoreId(storeId).stream().map(ProduitResponse::from).toList();
+	}
+
+	@Transactional
+	public ProduitResponse create(ProduitRequest request) {
 		Produit produit = new Produit(request.name(), request.code());
-		produit.setStore(store);
-		return produitRepository.save(produit);
+		produit.setStore(resolveStore(request.store()));
+		return ProduitResponse.from(produitRepository.save(produit));
+	}
+
+	@Transactional
+	public ProduitResponse update(Long id, ProduitRequest request) {
+		Produit produit = getOrThrow(id);
+		produit.setName(request.name());
+		produit.setCode(request.code());
+		produit.setStore(resolveStore(request.store()));
+		// saveAndFlush : le cascade PERSIST du nouveau store s'exécute au flush, avant de construire la réponse
+		return ProduitResponse.from(produitRepository.saveAndFlush(produit));
+	}
+
+	@Transactional
+	public void delete(Long id) {
+		produitRepository.delete(getOrThrow(id));
+	}
+
+	private Produit getOrThrow(Long id) {
+		return produitRepository.findById(id)
+				.orElseThrow(() -> new EntityNotFoundException("Produit introuvable : id=" + id));
+	}
+
+	// Un store existant avec le même code est réutilisé (sa description n'est pas modifiée), sinon un nouveau
+	// Store est retourné et sauvegardé avec le produit grâce au cascade PERSIST de Produit.store.
+	private Store resolveStore(StoreRequest request) {
+		if (request == null || !StringUtils.hasText(request.code())) {
+			throw new IllegalArgumentException("store.code est obligatoire");
+		}
+		return storeRepository.findByCode(request.code())
+				.orElseGet(() -> new Store(request.code(), request.description()));
 	}
 
 }
